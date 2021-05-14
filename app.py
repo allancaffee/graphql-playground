@@ -1,11 +1,42 @@
-#-----------------------------------------------------------------------------------------
-# Copyright (c) Microsoft Corporation. All rights reserved.
-# Licensed under the MIT License. See LICENSE in the project root for license information.
-#-----------------------------------------------------------------------------------------
+from ariadne import ObjectType, QueryType, gql, make_executable_schema
+from ariadne.asgi import GraphQL
 
-from flask import Flask
-app = Flask(__name__)
+# Define types using Schema Definition Language (https://graphql.org/learn/schema/)
+# Wrapping string in gql function provides validation and better error traceback
+type_defs = gql("""
+    type Query {
+        people: [Person!]!
+    }
 
-@app.route("/")
-def hello():
-    return app.send_static_file("index.html")
+    type Person {
+        firstName: String
+        lastName: String
+        age: Int
+        fullName: String
+    }
+""")
+
+# Map resolver functions to Query fields using QueryType
+query = QueryType()
+
+# Resolvers are simple python functions
+@query.field("people")
+def resolve_people(*_):
+    return [
+        {"firstName": "John", "lastName": "Doe", "age": 21},
+        {"firstName": "Bob", "lastName": "Boberson", "age": 24},
+    ]
+
+
+# Map resolver functions to custom type fields using ObjectType
+person = ObjectType("Person")
+
+@person.field("fullName")
+def resolve_person_fullname(person, *_):
+    return "%s %s" % (person["firstName"], person["lastName"])
+
+# Create executable GraphQL schema
+schema = make_executable_schema(type_defs, query, person)
+
+# Create an ASGI app using the schema, running in debug mode
+app = GraphQL(schema, debug=True)
